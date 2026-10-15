@@ -108,6 +108,24 @@ export function GenerateWebPath(length = PATH_LENGTH) {
 	return result
 }
 
+export function formatHopPorts(serverPorts, separator) {
+	if (!serverPorts?.length) {
+		return undefined;
+	}
+	return serverPorts.map(part => part.replace(':', '-')).join(separator);
+}
+
+export function isExplicitTrue(value) {
+	if (value === true || value === 1) {
+		return true;
+	}
+	if (typeof value !== 'string') {
+		return false;
+	}
+	const normalized = value.trim().toLowerCase();
+	return normalized === 'true' || normalized === '1';
+}
+
 export function parseServerInfo(serverInfo) {
 	let host, port;
 	if (serverInfo.startsWith('[')) {
@@ -119,19 +137,19 @@ export function parseServerInfo(serverInfo) {
 	  host = serverInfo.slice(0, lastColonIndex);
 	  port = serverInfo.slice(lastColonIndex + 1);
 	}
-	return { host, port: parseInt(port) };
+	return { host, port: parseInt(port), portText: port };
   }
   
   export function parseUrlParams(url) {
 	const [, rest] = url.split('://');
-	const [addressPart, ...remainingParts] = rest.split('?');
+	const hashIndex = rest.indexOf('#');
+	const beforeHash = hashIndex === -1 ? rest : rest.slice(0, hashIndex);
+	let name = hashIndex === -1 ? '' : rest.slice(hashIndex + 1);
+	const [addressPart, ...remainingParts] = beforeHash.split('?');
 	const paramsPart = remainingParts.join('?');
-  
-	const [paramsOnly, ...fragmentParts] = paramsPart.split('#');
-	const searchParams = new URLSearchParams(paramsOnly);
+	const searchParams = new URLSearchParams(paramsPart);
 	const params = Object.fromEntries(searchParams.entries());
 
-	let name = fragmentParts.length > 0 ? fragmentParts.join('#') : '';
 	try {
 	    name = decodeURIComponent(name);
 	} catch (error) { };
@@ -153,6 +171,9 @@ export function parseServerInfo(serverInfo) {
 		  public_key: params.pbk,
 		  short_id: params.sid,
 		};
+		if (isExplicitTrue(params['support-x25519mlkem768'])) {
+		  tls.reality.support_x25519mlkem768 = true;
+		}
 	  }
 	}
 	return tls;

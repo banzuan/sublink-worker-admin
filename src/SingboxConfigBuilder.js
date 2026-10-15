@@ -25,7 +25,18 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
     }
 
     convertProxy(proxy) {
-        return proxy;
+        if (!proxy?.tls?.reality || !Object.prototype.hasOwnProperty.call(proxy.tls.reality, 'support_x25519mlkem768')) {
+            return proxy;
+        }
+        const reality = { ...proxy.tls.reality };
+        delete reality.support_x25519mlkem768;
+        return {
+            ...proxy,
+            tls: {
+                ...proxy.tls,
+                reality,
+            },
+        };
     }
 
     addProxyToConfig(proxy) {

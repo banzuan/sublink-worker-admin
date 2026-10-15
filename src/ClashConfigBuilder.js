@@ -1,7 +1,7 @@
 import yaml from 'js-yaml';
 import { CLASH_CONFIG, generateRules, generateClashRuleSets, getOutbounds, PREDEFINED_RULE_SETS } from './config.js';
 import { BaseConfigBuilder } from './BaseConfigBuilder.js';
-import { DeepCopy } from './utils.js';
+import { DeepCopy, formatHopPorts } from './utils.js';
 import { t } from './i18n/index.js';
 
 export class ClashConfigBuilder extends BaseConfigBuilder {
@@ -69,6 +69,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                     'reality-opts': proxy.tls.reality?.enabled ? {
                         'public-key': proxy.tls.reality.public_key,
                         'short-id': proxy.tls.reality.short_id,
+                        ...(proxy.tls.reality.support_x25519mlkem768 ? { 'support-x25519mlkem768': true } : {}),
                     } : undefined,
                     'grpc-opts': proxy.transport?.type === 'grpc' ? {
                         'grpc-service-name': proxy.transport.service_name,
@@ -83,6 +84,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                     type: proxy.type,
                     server: proxy.server,
                     port: proxy.server_port,
+                    ports: formatHopPorts(proxy.server_ports, ','),
                     obfs: proxy.obfs.type,
                     'obfs-password': proxy.obfs.password,
                     password: proxy.password,
@@ -112,6 +114,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                     'reality-opts': proxy.tls.reality?.enabled ? {
                         'public-key': proxy.tls.reality.public_key,
                         'short-id': proxy.tls.reality.short_id,
+                        ...(proxy.tls.reality.support_x25519mlkem768 ? { 'support-x25519mlkem768': true } : {}),
                     } : undefined,
                     'grpc-opts': proxy.transport?.type === 'grpc' ? {
                         'grpc-service-name': proxy.transport.service_name,
@@ -119,6 +122,15 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                     tfo : proxy.tcp_fast_open,
                     'skip-cert-verify': proxy.tls.insecure,
                     'flow': proxy.flow ?? undefined,
+                };
+            case 'socks':
+                return {
+                    name: proxy.tag,
+                    type: 'socks5',
+                    server: proxy.server,
+                    port: proxy.server_port,
+                    username: proxy.username,
+                    password: proxy.password,
                 };
             case 'tuic':
                 return {

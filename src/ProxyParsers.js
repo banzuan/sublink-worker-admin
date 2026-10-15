@@ -1,5 +1,33 @@
 import { parseServerInfo, parseUrlParams, createTlsConfig, createTransportConfig, decodeBase64, base64ToBinary } from './utils.js';
 
+function safeDecode(value) {
+	try {
+		return decodeURIComponent(value);
+	} catch (error) {
+		return value;
+	}
+}
+
+function isHopPortList(portText) {
+	return !!portText && (portText.includes('-') || portText.includes(','));
+}
+
+function toSingboxServerPorts(portText) {
+	return portText.split(',')
+		.map(part => part.trim().replace(/\s*-\s*/, ':'))
+		.filter(Boolean);
+}
+
+function resolveHysteriaPorts(portText, mport) {
+	const addressPort = portText.endsWith('/') ? portText.slice(0, -1) : portText;
+	const hopText = typeof mport === 'string' ? mport.trim() : '';
+	const hopSource = isHopPortList(hopText) ? hopText : (isHopPortList(addressPort) ? addressPort : '');
+	return {
+		serverPort: parseInt(addressPort),
+		serverPorts: isHopPortList(hopSource) ? toSingboxServerPorts(hopSource) : undefined,
+	};
+}
+
 
 export class ProxyParser {
 	static parse(url, userAgent) {
@@ -18,6 +46,9 @@ export class ProxyParser {
         return HttpParser.parse(url, userAgent);
       case 'trojan': return new TrojanParser().parse(url);
       case 'tuic': return new TuicParser().parse(url);
+      case 'socks':
+      case 'socks5':
+        return new SocksParser().parse(url);
 		}
 	}
 	}
@@ -157,20 +188,23 @@ export class ProxyParser {
           let host, port;
           let password = null;
           
+          let portText = '';
           if (addressPart.includes('@')) {
             const [uuid, serverInfo] = addressPart.split('@');
             const parsed = parseServerInfo(serverInfo);
             host = parsed.host;
-            port = parsed.port;
+            portText = parsed.portText ?? '';
             password = decodeURIComponent(uuid);
           } else {
             // 直接解析服务器地址和端口
             const parsed = parseServerInfo(addressPart);
             host = parsed.host;
-            port = parsed.port;
+            portText = parsed.portText ?? '';
             // 如果 URL 中没有 @，则尝试从 params.auth 获取密码
             password = params.auth;
           }
+          const resolvedPorts = resolveHysteriaPorts(portText, params.mport);
+          port = resolvedPorts.serverPort;
       
           const tls = createTlsConfig(params);
 
@@ -185,6 +219,7 @@ export class ProxyParser {
             type: "hysteria2",
             server: host,
             server_port: port,
+            server_ports: resolvedPorts.serverPorts,
             password: password,
             tls: tls,
             obfs: obfs,
@@ -247,6 +282,31 @@ export class ProxyParser {
         }
       }
       
+
+      class SocksParser {
+        parse(url) {
+          const { addressPart, name } = parseUrlParams(url);
+          const atIndex = addressPart.lastIndexOf('@');
+          const userinfo = atIndex === -1 ? '' : addressPart.slice(0, atIndex);
+          const serverInfo = atIndex === -1 ? addressPart : addressPart.slice(atIndex + 1);
+          const { host, port } = parseServerInfo(serverInfo);
+          const colonIndex = userinfo.indexOf(':');
+          const username = userinfo
+            ? safeDecode(colonIndex === -1 ? userinfo : userinfo.slice(0, colonIndex))
+            : undefined;
+          const password = colonIndex === -1 ? undefined : safeDecode(userinfo.slice(colonIndex + 1));
+
+          return {
+            type: 'socks',
+            tag: name || 'SOCKS',
+            server: host,
+            server_port: port,
+            version: '5',
+            username: username || undefined,
+            password: password || undefined,
+          };
+        }
+      }
 
       class HttpParser {
         static async parse(url, userAgent) {

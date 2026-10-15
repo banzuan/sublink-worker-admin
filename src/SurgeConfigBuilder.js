@@ -1,6 +1,7 @@
 import { BaseConfigBuilder } from './BaseConfigBuilder.js';
 import { SURGE_CONFIG, SURGE_SITE_RULE_SET_BASEURL, SURGE_IP_RULE_SET_BASEURL, generateRules, getOutbounds, PREDEFINED_RULE_SETS } from './config.js';
 import { t } from './i18n/index.js';
+import { formatHopPorts } from './utils.js';
 
 export class SurgeConfigBuilder extends BaseConfigBuilder {
     constructor(inputString, selectedRules, customRules, baseConfig, lang, userAgent) {
@@ -90,6 +91,21 @@ export class SurgeConfigBuilder extends BaseConfigBuilder {
                 }
                 if (proxy.tls?.alpn) {
                     surgeProxy += `, alpn=${proxy.tls.alpn.join(',')}`;
+                }
+                {
+                    const portHopping = formatHopPorts(proxy.server_ports, ';');
+                    if (portHopping) {
+                        surgeProxy += `, port-hopping=${portHopping}`;
+                    }
+                }
+                break;
+            case 'socks':
+                surgeProxy = `${proxy.tag} = socks5, ${proxy.server}, ${proxy.server_port}`;
+                if (proxy.username) {
+                    surgeProxy += `, ${proxy.username}`;
+                    if (proxy.password) {
+                        surgeProxy += `, ${proxy.password}`;
+                    }
                 }
                 break;
             case 'tuic':
