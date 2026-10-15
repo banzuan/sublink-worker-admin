@@ -18,13 +18,33 @@ function toSingboxServerPorts(portText) {
 		.filter(Boolean);
 }
 
+function splitHopAndMainPort(addressPort) {
+	const segments = addressPort.split(',').map(part => part.trim()).filter(Boolean);
+	if (segments.length > 1 && /^\d+$/.test(segments[0])) {
+		return {
+			serverPort: parseInt(segments[0], 10),
+			hopText: segments.slice(1).join(','),
+		};
+	}
+	return {
+		serverPort: parseInt(addressPort),
+		hopText: isHopPortList(addressPort) ? addressPort : '',
+	};
+}
+
 function resolveHysteriaPorts(portText, mport) {
 	const addressPort = portText.endsWith('/') ? portText.slice(0, -1) : portText;
 	const hopText = typeof mport === 'string' ? mport.trim() : '';
-	const hopSource = isHopPortList(hopText) ? hopText : (isHopPortList(addressPort) ? addressPort : '');
+	if (isHopPortList(hopText)) {
+		return {
+			serverPort: parseInt(addressPort),
+			serverPorts: toSingboxServerPorts(hopText),
+		};
+	}
+	const resolved = splitHopAndMainPort(addressPort);
 	return {
-		serverPort: parseInt(addressPort),
-		serverPorts: isHopPortList(hopSource) ? toSingboxServerPorts(hopSource) : undefined,
+		serverPort: resolved.serverPort,
+		serverPorts: resolved.hopText ? toSingboxServerPorts(resolved.hopText) : undefined,
 	};
 }
 
